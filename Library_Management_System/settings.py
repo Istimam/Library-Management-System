@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 import dj_database_url
 from pathlib import Path
-import environ
+import environ, os
 env = environ.Env()
 environ.Env.read_env()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -27,8 +27,12 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
-CSRF_TRUSTED_ORIGINS = ['https://library-management-system-bl2n.onrender.com', '0.0.0.0','https://*.127.0.0.1']
-
+CSRF_TRUSTED_ORIGINS = [
+    'https://library-management-system-bl2n.onrender.com',
+    'http://0.0.0.0',
+    'http://127.0.0.1',
+]
+PORT = os.getenv('PORT', '8000')
 # Application definition
 
 INSTALLED_APPS = [
