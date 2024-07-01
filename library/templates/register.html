@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block body %}
+    {% if form.non_field_errors %}
+        {% for error in form.non_field_errors %}
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-2" role="alert">
+                <p class="font-bold">Error!</p>
+                <p class="block sm:inline">{{ error }}</p>
+            </div>
+        {% endfor %}
+    {% endif %}
+    <div class="bg-white px-3 py-4 rounded-xl my-6">
+        <h1 class="font-bold text-3xl text-center pb-5">Register</h1>
+        <div class="w-full mt-10">
+            <form method="post" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+                {% csrf_token %}
+                <div class="flex flex-wrap -mx-3 mb-6">
+                    <div class="w-full md:w-1/2 px-3 mb-6 md:mb-0">
+                        <label class="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2" for="username">Username</label>
+                        <input class="appearance-none block w-full bg-gray-200 text-gray-700 border border-gray-200 rounded py-3 px-4 leading-tight focus:outline-none focus:bg-white focus:border-gray-500" id="username" name="username" type="text" placeholder="Enter your username">
+                        {% if form.username.errors %}
+                            {% for error in form.username.errors %}<p class="text-red-600 text-sm italic pb-2">{{ error }}</p>{% endfor %}
+                        {% endif %}
+                    </div>
+                    <div class="w-full md:w-1/2 px-3 mb-6 md:mb-0">
+                        <label class="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2" for="email">Email</label>
+                        <input class="appearance-none block w-full bg-gray-200 text-gray-700 border border-gray-200 rounded py-3 px-4 leading-tight focus:outline-none focus:bg-white focus:border-gray-500" id="email" name="email" type="email" placeholder="Enter your email">
+                        {% if form.email.errors %}
+                            {% for error in form.email.errors %}<p class="text-red-600 text-sm italic pb-2">{{ error }}</p>{% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex flex-wrap -mx-3 mb-6">
+                    <div class="w-full md:w-1/2 px-3 mb-6 md:mb-0">
+                        <label class="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2" for="password">Password</label>
+                        <input class="appearance-none block w-full bg-gray-200 text-gray-700 border border-gray-200 rounded py-3 px-4 leading-tight focus:outline-none focus:bg-white focus:border-gray-500" id="password" name="password" type="password" placeholder="Enter your password">
+                        {% if form.password.errors %}
+                            {% for error in form.password.errors %}<p class="text-red-600 text-sm italic pb-2">{{ error }}</p>{% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">Register</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
