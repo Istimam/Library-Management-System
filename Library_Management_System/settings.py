@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
-
+import dj_database_url
 from pathlib import Path
 import environ
 env = environ.Env()
@@ -84,16 +84,20 @@ WSGI_APPLICATION = 'Library_Management_System.wsgi.application'
 #     }
 # }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql_psycopg2',
+#         'NAME': env("DATABASE_NAME"),
+#         'USER': env("DATABASE_USER"),
+#         'PASSWORD': env("DATABASE_PASSWORD"),
+#         'HOST': env("DATABASE_HOST"),
+#         'PORT': env("DATABASE_PORT"),
+#     }}
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': env("DATABASE_NAME"),
-        'USER': env("DATABASE_USER"),
-        'PASSWORD': env("DATABASE_PASSWORD"),
-        'HOST': env("DATABASE_HOST"),
-        'PORT': env("DATABASE_PORT"),
-    }}
-
+    'default': dj_database_url.config(
+        default='postgresql://library_management_dhbf_user:h6dx4UU6wRvcxULeXfIB0s95AvhyeCqN@dpg-cq1i46g8fa8c73f6vgg0-a.oregon-postgres.render.com/library_management_dhbf',
+    )
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
