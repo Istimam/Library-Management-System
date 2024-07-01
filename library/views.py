@@ -6,19 +6,14 @@ from django.core.mail import EmailMultiAlternatives
 from django.urls import reverse_lazy
 from django.contrib import messages
 from datetime import datetime
+from django.utils import timezone
+from decimal import Decimal
 from django.contrib.auth import authenticate, login, logout
 from .models import Book, Category, Review, Transaction, User, UserAccount
 from .forms import ReviewForm, BookForm, CategoryForm, DepositForm
 from django.views.generic import ListView, DetailView, FormView, CreateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
-from .constants import DEPOSIT, BORROW, PAY
-# Create your views here.
-
-# def home(request):
-#     books = Book.objects.all()
-#     categories = Category.objects.all()
-#     return render(request, 'home.html', {'books': books, 'categories': categories})
-
+from .constants import DEPOSIT, BORROW, RETURN
     
 class AddBookView(LoginRequiredMixin, CreateView):
     model = Book
@@ -32,113 +27,149 @@ class AddCategoryView(LoginRequiredMixin, CreateView):
     template_name = 'add_category.html'
     success_url = reverse_lazy('home')
 
-# def book_detail(request, book_id):
-#     book = get_object_or_404(Book, id=book_id)
-#     reviews = Review.objects.filter(book=book)
-#     if request.method == 'POST':
-#         form = ReviewForm(request.POST)
-#         if form.is_valid():
-#             review = form.save(commit=False)
-#             review.book = book
-#             review.save()
-#             return redirect('book_detail', book_id=book.id)
-#         else:
-#             form = ReviewForm()
-#         return render(request, 'book_detail.html', {'book':book, 'reviews':reviews, 'form':form})
-
 class BookDetailView(DetailView):
     model = Book
     template_name = 'book_detail.html'
     context_object_name = 'book'
-    from_class = ReviewForm
+    form_class = ReviewForm
 
     def get_success_url(self):
         return reverse_lazy('book_detail', kwargs={'pk': self.object.pk})
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['reviews'] = Review.objects.filter(book=self.object)
+        context['review_form'] = self.form_class()
+        context['form'] = self.form_class()
+        context['categories'] = self.object.category.all()
+        if self.request.user.is_authenticated:
+            context['user_account'] = UserAccount.objects.filter(user=self.request.user).first()
+            context['user_borrowed'] = self.object.borrowers.filter(id=self.request.user.id).exists()
+        else:
+            context['user_account'] = None
+            context['user_borrowed'] = False
         return context
-    
+
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
-        form = self.get_form()
+        form = self.form_class(request.POST)
         if form.is_valid():
-            review = form.save(commit=True)
-            review.book = self.object
-            review.user - request.user.userprofile
-            review.save()
-            return self.form_valid(form)
+            if request.user.is_authenticated:
+                if self.object.borrowers.filter(id=request.user.id).exists():
+                    review = form.save(commit=False)
+                    review.book = self.object
+                    review.user = request.user.useraccount  # Assign the user account to review
+                    review.save()
+                    messages.success(request, 'Review added successfully!')
+                    return redirect('book_detail', pk=self.object.pk)
+                else:
+                    messages.error(request, 'You can only review books you have borrowed.')
+            else:
+                messages.error(request, 'You need to be logged in to add a review.')
+                return redirect('login')
+
+        if 'borrow' in request.POST:
+            return self.borrow_book(request)
+        elif 'return' in request.POST:
+            return self.return_book(request)
         else:
-            return self.form_invalid(form)
-        
-class BorrowBookView(LoginRequiredMixin, View):
-    login_url = 'login'
-    def post(self, request, *args, **kwargs):
-        book = get_object_or_404(Book, id=kwargs['book_id'])
-        user_profile = request.user.userprofile
-        if user_profile.balance >= book.borrowing_price:
-            user_profile.balance -= book.borrowing_price
-            user_profile.save()
-            book.borrowed_by = user_profile
-            book.save()
-            Transaction.objects.create(
-                user=user_profile, 
-                book=book, 
-                transaction_type='borrow', 
-                amount=book.borrowing_price)
-            messages.success(self.request, f"{book} book borrowed seccesfully.")
-            mail_subject = "Book Borrowed From Library"
-            message = render_to_string('borrow_message.html',{
-                'book':book,
-                'user':self.request.user
-            })
-            to_email = self.request.user.email
-            send_email = EmailMultiAlternatives(mail_subject, '', 'nasrullah9867@gmail.com', to = [to_email])
-            send_email.attach_alternative(message, "text/html")
-            send_email.send()
-        else:
-            messages.error(self.request, "Insufficient balance.")
-        return redirect('profile')
+            messages.error(request, 'Invalid request.')
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def borrow_book(self, request):
+        book = self.object
+        user = request.user
+        if not user.is_authenticated:
+            messages.error(request, 'You need to be logged in to borrow books.')
+            return redirect('book_detail', pk=book.pk)
+
+        user_account = UserAccount.objects.filter(user=user).first()
+
+        if not user_account:
+            messages.error(request, 'You need a library account to borrow books. Please create an account.')
+            return redirect('book_detail', pk=book.pk)
+
+        if user_account.balance < book.borrowing_price:
+            messages.error(request, 'You do not have enough balance to borrow this book.')
+            return redirect('book_detail', pk=book.pk)
+
+        user_account.balance -= Decimal(str(book.borrowing_price))
+        user_account.save()
+
+        Transaction.objects.create(
+            account=user_account,
+            book=book,
+            amount=book.borrowing_price,
+            balance_after_transaction=user_account.balance,
+            transaction_type=BORROW
+        )
+        book.borrowers.add(user)
+        messages.success(request, 'Book borrowed successfully!')
+        mail_subject = "Book is borrowed"
+        message = render_to_string('borrow_message.html', {
+            'user': self.request.user,
+            'book': book,
+            'amount': book.borrowing_price,
+        })
+        to_email = self.request.user.email
+        send_email = EmailMultiAlternatives(mail_subject, '', to=[to_email])
+        send_email.attach_alternative(message, "text/html")
+        send_email.send()
+        return redirect('book_detail', pk=book.pk)
+
+    def return_book(self, request):
+        book = self.object
+        user = request.user
+        if not user.is_authenticated:
+            messages.error(request, 'You need to be logged in to return books.')
+            return redirect('book_detail', pk=book.pk)
+
+        user_account = UserAccount.objects.filter(user=user).first()
+
+        user_account.balance += Decimal(str(book.borrowing_price))
+        user_account.save()
+
+        Transaction.objects.create(
+            account=user_account,
+            book=book,
+            amount=book.borrowing_price,
+            balance_after_transaction=user_account.balance,
+            transaction_type=RETURN
+        )
+
+        book.borrowers.remove(user)
+        messages.success(request, 'Book returned successfully!')
+        return redirect('book_detail', pk=book.pk)
+
+    def form_valid(self, form):
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        return self.render_to_response(self.get_context_data(form=form))
 
 class ProfileView(LoginRequiredMixin, ListView):
-    model = Transaction
     template_name = 'profile.html'
-    context_object_name = 'transactions'
+    context_object_name = 'borrowed_books'
+    paginate_by = 10
 
     def get_queryset(self):
-        return Transaction.objects.filter(account=self.request.user.useraccount).order_by('-time')
+        category_name = self.request.GET.get('category')
+        if category_name:
+            queryset = Book.objects.filter(borrowers=self.request.user, category__name=category_name)
+        else:
+            queryset = Book.objects.filter(borrowers=self.request.user)
+        return queryset.order_by('title')
 
-    
-# class DepositView(LoginRequiredMixin, View):
-#     template_name = 'deposit.html'
-#     form_class = DepositForm
-#     title = 'Deposit'
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        borrowed_categories = Category.objects.filter(book__borrowers=self.request.user).distinct()
 
-#     def get_initial(self):
-#         initial = {'transaction_type': DEPOSIT}  # Assuming DEPOSIT is defined somewhere
-#         return initial
+        context.update({
+            'borrowed_categories': borrowed_categories,
+        })
+        return context
 
-#     def form_valid(self, form):
-#         amount = form.cleaned_data.get('amount')
-#         user_profile = self.request.user.userprofile
-#         user_profile.balance += amount
-#         user_profile.save(update_fields=['balance'])
-        
-#         messages.success(self.request, f"{amount}$ Deposited Successfully")
 
-#         # Sending email notification
-#         mail_subject = "Money Deposited"
-#         message = render_to_string('deposit_message.html', {
-#             'user': self.request.user,
-#             'amount': amount,
-#         })
-#         to_email = self.request.user.email
-#         send_email = EmailMultiAlternatives(mail_subject, '', 'nasrullah9867@gmail.com', [to_email])
-#         send_email.attach_alternative(message, "text/html")
-#         send_email.send()
-
-#         return super().form_valid(form)
 class TransactionCreateMixin(LoginRequiredMixin, CreateView):
     template_name = 'deposit.html'
     model = Transaction
@@ -158,6 +189,7 @@ class TransactionCreateMixin(LoginRequiredMixin, CreateView):
             'title' : self.title,
         })
         return context
+
 def send_transaction_mail(user, amount, subject, template):
     mail_subject = "Deposite Message"
     message = render_to_string(template,{
@@ -182,45 +214,10 @@ class DepositMoneyView(TransactionCreateMixin):
         account.balance += amount
         account.save(update_fields=['balance'])
         messages.success(self.request, f"{amount}$ was deposited to your account")
+        # Send email with transaction details
         send_transaction_mail(self.request.user, amount, "Deposit Message", "deposite_message.html")
 
         return super().form_valid(form)
-# class DepositView(LoginRequiredMixin, View):
-#     template_name = 'deposit.html'
-#     form_class = DepositForm
-#     title = 'Deposit'
-
-#     def get_initial(self):
-#         return {'transaction_type': 'deposit'}
-
-#     def get_form_kwargs(self):
-#         kwargs = super().get_form_kwargs()
-#         kwargs['account'] = self.request.user.userprofile
-#         return kwargs
-
-#     def get(self, request, *args, **kwargs):
-#         form = self.form_class(initial=self.get_initial())
-#         return render(request, self.template_name, {'form': form, 'title': self.title})
-
-#     def post(self, request, *args, **kwargs):
-#         form = self.form_class(request.POST, account=self.request.user.userprofile)
-#         if form.is_valid():
-#             amount = form.cleaned_data.get('amount')
-#             form.save()
-#             messages.success(request, 'Deposit successful.')
-#             mail_subject = "Money Deposited"
-#             message = render_to_string('deposit_message.html', {
-#                 'user': request.user,
-#                 'amount': amount,
-#             })
-#             to_email = request.user.email
-#             send_email = EmailMultiAlternatives(mail_subject, '', 'nasrullah9867@gmail.com', [to_email])
-#             send_email.attach_alternative(message, "text/html")
-#             send_email.send()
-#             return redirect('home')
-#         return render(request, self.template_name, {'form': form, 'title': self.title})
-
-
 
 class RegisterView(View):
     def get(self, request):
@@ -270,28 +267,28 @@ class LogoutView(View):
 class TransactionReportView(LoginRequiredMixin, ListView):
     template_name = 'transaction_report.html'
     model = Transaction
-    balance = 0 # filter korar pore ba age amar total balance ke show korbe
     context_object_name = "transactions_report"
+    balance = 0
 
     def get_queryset(self):
-        # jodi user filter na kre
-        queryset = super().get_queryset().filter(account=self.request.user.account)
+        queryset = super().get_queryset().filter(account=self.request.user.useraccount)
         start_date_str = self.request.GET.get('start_date')
         end_date_str = self.request.GET.get('end_date')
 
-         # jodi user date filer kre
         if start_date_str and end_date_str:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            queryset = queryset.filter(timestamp__date__range=(start_date, end_date))
+            queryset = queryset.filter(time__range=(start_date, end_date))
 
-            self.balance = Transaction.objects.filter(timestamp__date__gte = start_date, timestamp__date__lte = end_date).aggregate(Sum('amount'))['amount__sum']
+            self.balance = queryset.aggregate(Sum('amount'))['amount__sum']
         else:
-            self.balance = self.request.user.account.balance
+            self.balance = self.request.user.useraccount.balance
         return queryset.distinct()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'account': self.request.user.account
+            'account': self.request.user.useraccount,
+            'balance': self.balance
         })
         return context

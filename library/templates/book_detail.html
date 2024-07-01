@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}{{ book.title }}{% endblock %}
+{% block body %}
+<div class="flex flex-wrap">
+    <div class="w-full md:w-1/3 p-2">
+        {% if book.image %}
+            <img src="{{ book.image.url }}" alt="{{ book.title }} Image" class="img-fluid">
+        {% else %}
+            <p>No image available.</p>
+        {% endif %}
+    </div>
+    <div class="w-full md:w-2/3 p-2 bg-gray-500">
+        <div class="flex flex-wrap m-2">
+            {% for category in book.category.all %}
+            <div class="m-2">
+                <a href="?category={{ category.name }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">{{ category.name }}</a>
+            </div>
+            {% endfor %}
+        </div>
+        <h3 class="text-balance uppercase">{{ book.title }}</h3>
+        <h2><strong>Author:</strong> {{ book.author }}</h2>
+        <p><strong>Description:</strong> {{ book.description }}</p>
+        <p><strong>Price:</strong> {{ book.borrowing_price }}</p>
+        
+        {% if user.is_authenticated %}
+            {% if user in book.borrowers.all %}
+                <p>You have already borrowed this book.</p>
+                <form method="post" action="">
+                    {% csrf_token %}
+                    <button name="return" type="submit" class="bg-red-500 text-white hover:bg-red-700 hover:border-red-700 py-2 px-4 border border-transparent rounded">Return</button>
+                </form>
+            {% else %}
+                <form method="post" action="">
+                    {% csrf_token %}
+                    <button name="borrow" type="submit" class="bg-blue-900 text-white hover:bg-white hover:text-blue-900 hover:border-blue-900 shadow hover:shadow-lg py-2 px-4 border border-transparent rounded-none">Borrow</button>
+                </form>
+            {% endif %}
+        {% else %}
+            <div class="flex justify-start mt-3">
+                <a href="{% url 'login' %}" class="bg-blue-900 text-white hover:bg-white hover:text-blue-900 hover:border-blue-900 shadow hover:shadow-lg py-2 px-4 border border-transparent rounded-none">Login</a>
+                <p> to borrow this book.</p> 
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="comments-section mt-5">
+    {% if user_borrowed %}
+        <div class="add-review">
+            <button class="bg-indigo-900 text-lg shadow hover:shadow-lg py-2 px-4 border border-transparent rounded text-white">Add a Review</button>
+            <form method="post">
+                {% csrf_token %}
+                {{ review_form }}
+                <button type="submit" class="bg-red-900 text-white shadow hover:shadow-lg p-2 mt-2 mb-4 border border-transparent rounded">Submit Review</button>
+            </form>
+        </div>
+    {% else %}
+        <p>You need to borrow this book to add a review.</p>
+    {% endif %}
+    <button class="bg-indigo-900 text-white shadow hover:shadow-lg py-2 px-4 border border-transparent rounded mb-2">
+        Reviews
+    </button>
+    <div class="review">
+        {% for review in reviews %}
+        <div class="review bg-white rounded-lg mb-4">
+            <div class="flex items-start p-4">
+                <div class="flex-shrink-0">
+                    <!-- Profile Picture (removed) -->
+                </div>
+                <div class="ml-4 flex-grow">
+                    <div class="bg-gray-200 rounded-lg p-2 shadow-md">
+                        <p class="font-bold text-lg text-gray-800">{{ review.user.user.username }}</p>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-4 mt-4 shadow-md">
+                        <p class="text-gray-600">{{ review.content }}</p>
+                    </div>
+                    <div class="flex items-center mt-4">
+                        <svg class="h-4 w-4 fill-current text-yellow-500 mr-1" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><polygon points="10 1 12.39 6.14 18 7.14 14.16 11.86 15.47 18 10 15.64 4.53 18 5.84 11.86 2 7.14 7.61 6.14 10 1" /></svg>
+                        <p class="text-sm text-gray-700">{{ review.rating }}</p>
+                    </div>
+                    <p class="text-xs text-gray-800 font-bold mt-1">{{ review.date|date:"F d, Y" }}</p>
+                </div>
+            </div>
+        </div>
+               
+        {% endfor %}
+    </div>  
+</div>
+{% endblock %}

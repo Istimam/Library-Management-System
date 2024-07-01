@@ -1,9 +1,17 @@
 DEPOSIT = 1
 BORROW = 2
-PAY = 3
+RETURN = 3
 
 TRANSACTION_TYPE =(
-    (DEPOSIT, 'Deposit'),
-    (BORROW, '2'),
-    (PAY, '3'),
+    (DEPOSIT, 'DEPOSIT'),
+    (BORROW, 'BORROW'),
+    (RETURN, 'RETURN'),
 )
+
+RATING_CHOICES = [
+        (1, '1'),
+        (2, '2'),
+        (3, '3'),
+        (4, '4'),
+        (5, '5'),
+    ]

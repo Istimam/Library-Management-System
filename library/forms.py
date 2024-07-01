@@ -1,6 +1,6 @@
 from django import forms 
 from .models import Book, Review, Category, Transaction
-
+from .constants import RATING_CHOICES
 # Create a form for adding a new review
 class BookForm(forms.ModelForm):
     class Meta:
@@ -39,21 +39,16 @@ class CategoryForm(forms.ModelForm):
             })
 
 class ReviewForm(forms.ModelForm):
+    rating = forms.ChoiceField(choices=RATING_CHOICES, widget=forms.Select(attrs={'class': 'form-select'}))
     class Meta:
         model = Review
-        fields = ['review']
+        fields = ['content', 'rating']
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
         for field in self.fields:
             self.fields[field].widget.attrs.update({
-                
-                'class' : (
-                    'appearance-none block w-full bg-gray-200 '
-                    'text-gray-700 border border-gray-200 rounded '
-                    'py-3 px-4 leading-tight focus:outline-none '
-                    'focus:bg-white focus:border-gray-500'
-                ) 
+                'class': 'form-input block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm'
             })
 
 class TransactionForm(forms.ModelForm):

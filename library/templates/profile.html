@@ -1,2 +1,37 @@
 {% extends "base.html" %}
-{% block body %}{% endblock %}
+{% load static %}
+{% block title %}Profile{% endblock %}
+{% block body %}
+<div lass="container mx-auto flex flex-wrap items-center gap-10 mt-10">
+    <div class="flex flex-wrap m-3">
+        <div class="m-2">
+            <a href="{% url 'profile' %}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">All Books ({{ borrowed_books.count }})</a>
+        </div>
+        {% for category in borrowed_categories %}
+        <div class="m-2">
+            <a href="?category={{ category.name }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">{{ category.name }}</a>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-3 pt-5">
+        {% for book in borrowed_books %}
+        <div class="bg-white shadow-md rounded-lg overflow-hidden m-2">
+            <div class="bg-cover" style="height: 300px; background-size: cover; background-position: center; background-repeat: no-repeat; 
+                {% if book.image %}
+                    background-image: url('{{ book.image.url }}');
+                {% else %}
+                    background-image: url('{% static 'img/default-book.jpg' %}');
+                {% endif %}">
+            </div>
+            <div class="p-4">
+                <h5 class="font-bold text-lg">
+                    <a href="{% url 'book_detail' book.pk %}" class="text-blue-900 hover:text-red-700">{{ book.title }}</a>
+                </h5>
+                <h3 class="text-gray-700">Price: ${{ book.borrowing_price }}</h3>
+                <p class="text-gray-600">{{ book.description|truncatechars:100 }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
